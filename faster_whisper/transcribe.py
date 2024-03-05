@@ -66,6 +66,7 @@ class TranscriptionOptions(NamedTuple):
     word_timestamps: bool
     prepend_punctuations: str
     append_punctuations: str
+    hotwords: Optional[str]
 
 
 class TranscriptionInfo(NamedTuple):
@@ -213,6 +214,7 @@ class WhisperModel:
         append_punctuations: str = "\"'.。,，!！?？:：”)]}、",
         vad_filter: bool = False,
         vad_parameters: Optional[Union[dict, VadOptions]] = None,
+        hotwords: Optional[str] = None,
     ) -> Tuple[Iterable[Segment], TranscriptionInfo]:
         """Transcribes an input file.
 
@@ -264,7 +266,8 @@ class WhisperModel:
             https://github.com/snakers4/silero-vad.
           vad_parameters: Dictionary of Silero VAD parameters or VadOptions class (see available
             parameters and default values in the class `VadOptions`).
-
+          hotwords:Optional text
+            add hotwords if set prefix it invalid
         Returns:
           A tuple with:
 
@@ -379,6 +382,7 @@ class WhisperModel:
             word_timestamps=word_timestamps,
             prepend_punctuations=prepend_punctuations,
             append_punctuations=append_punctuations,
+            hotwords=hotwords,
         )
 
         segments = self.generate_segments(features, tokenizer, options, encoder_output)
@@ -404,6 +408,7 @@ class WhisperModel:
         tokenizer: Tokenizer,
         options: TranscriptionOptions,
         encoder_output: Optional[ctranslate2.StorageView] = None,
+
     ) -> Iterable[Segment]:
         content_frames = features.shape[-1] - self.feature_extractor.nb_max_frames
         idx = 0
@@ -439,6 +444,7 @@ class WhisperModel:
                 previous_tokens,
                 without_timestamps=options.without_timestamps,
                 prefix=options.prefix if seek == 0 else None,
+                hotwords=options.hotwords,
             )
 
             if seek > 0 or encoder_output is None:
@@ -740,11 +746,17 @@ class WhisperModel:
         previous_tokens: List[int],
         without_timestamps: bool = False,
         prefix: Optional[str] = None,
+        hotwords: Optional[str] = None,
     ) -> List[int]:
         prompt = []
 
         if previous_tokens:
             prompt.append(tokenizer.sot_prev)
+            if hotwords and not prefix:
+                hotwords_tokens = tokenizer.encode(" " + hotwords.strip())
+                if len(hotwords_tokens) >= self.max_length // 2:
+                    hotwords_tokens = hotwords_tokens[: self.max_length // 2 - 1]
+                prompt.extend(hotwords_tokens)
             prompt.extend(previous_tokens[-(self.max_length // 2 - 1) :])
 
         prompt.extend(tokenizer.sot_sequence)
