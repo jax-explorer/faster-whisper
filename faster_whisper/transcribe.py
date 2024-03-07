@@ -928,6 +928,7 @@ class WhisperModel:
                 prompt.append(tokenizer.timestamp_begin)
             prompt.extend(prefix_tokens)
 
+        print("prompt is", tokenizer.decode(prompt))
         return prompt
 
     def add_word_timestamps(
